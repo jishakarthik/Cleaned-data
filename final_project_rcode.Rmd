@@ -1,0 +1,268 @@
+---
+title: "Dream Home/Investment"
+author: "Jisha"
+date: "February 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("plyr")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("ggplot2")
+#install.packages("scales")
+#install.packages("graphics")
+#install.packages("caret")
+
+library(plyr)
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(graphics)
+library(caret)
+
+```
+#Convert to local dataframe
+```{r}
+homedf <- read.csv("C:/springboard_capstone_project/final_project/home_poject_data/train.csv", header = TRUE)
+homedf <- read.csv("C:/springboard_capstone_project/final_project/home_poject_data/train.csv",stringsAsFactors = FALSE)
+homedf <- as.data.frame(homedf)
+homedf <- tbl_df(homedf)
+glimpse(homedf)
+```
+ Description of Dataset
+ The dataset is Kaggle competitions 'Iowa House Prices: Regression Techniques 'train.csv.The dataset contains 81 variables and 1460 observations.Of the 81 variables, 23 are nominal, 23 are ordinal, 14 are discrete, and 20 are continuous. The variables included are basic characteristics that anyone wanting to buy a house would be interested in.
+ 
+ Cleaning data
+ 
+ #Finding the missing values in data
+```{r}
+any(is.na(homedf))
+```
+#How many are  there
+```{r}
+sum(is.na(homedf))
+# Return index of columns that have missing values
+na.cols = which(colSums(is.na(homedf)) >0 )
+#Break down missing values by variable
+sort(colSums(sapply(homedf[na.cols], is.na)), decreasing = TRUE)
+
+```
+
+PoolQC and MiscFeature is missing most of values and comparing with the values of other variables like poolArea and MiscValue ,the home is missing pool and Miscellaneous features. These variables are not containing enough information for the analysis.
+# Dropping the PoolQC and MiscFeature
+```{r}
+#homedf %>%
+#dplyr:: select(everything(),- PoolQC)
+```
+
+Alley have NA encoded as a level to specify No Alley Access.It's not "missing" values.There are 1369 missing values in Alley.Coding the NAs to No Alley, fixes all these missing values. 
+```{r}
+
+homedf$Alley[is.na(homedf$Alley)]<- "No Alley"
+
+```
+690 FireplaceQu is missing. Fireplace column shows the range of fire places from 0 to 3.Assuming 690 homes doesn't have a fireplace change the 'NA' to 'No fireplace'.
+```{r}
+table(homedf$Fireplaces)
+```
+
+```{r}
+
+homedf$FireplaceQu[is.na(homedf$FireplaceQu)]<- "No Fireplace"
+
+```
+
+```{r}
+
+table(homedf$FireplaceQu)
+```
+
+ 1179 missing values in Fence. Changing the NA's to "No Fence"
+ 
+```{r}
+homedf$Fence[is.na(homedf$Fence)]<- "No Fence"
+
+```
+
+```{r}
+table(homedf$Fence)
+```
+
+259 values are missing in LotFrontage.There is no single variable in the dataset that gives a reason why these values are missing. We make the assumption that the lot frontage for a given house is fairly similar to the other properties.
+# Populating the NA's with the mean of lot frontage
+```{r}
+lf.mean <- mean(homedf$LotFrontage, na.rm=TRUE)
+homedf$LotFrontage[is.na(homedf$LotFrontage)] = lf.mean
+lf.mean
+```
+5 Garage variables are missing 81 values.Checking the variables 'GarageCars' and 'GarageArea' gives the idea there is no garage built with the home .So the missing values are 'none'. 
+```{r}
+# Changing NA's in garage variable to none
+homedf$GarageType[is.na(homedf$GarageType)]<- "None"
+homedf$GarageFinish[is.na(homedf$GarageFinish)]<- "None"
+homedf$GarageQual[is.na(homedf$GarageQual)]<- "None"
+homedf$GarageCond[is.na(homedf$GarageCond)]<- "None"
+
+```
+
+```{r}
+# Fill in Garage year Built
+homedf$GarageYrBlt[is.na(homedf$GarageYrBlt)]<- "0"
+
+```
+Missing values in BsmtExposure,BsmtFinType1,BsmtFinType2,BsmtQual,BsmtCond is related with Basement sqrft 0.The missing values shows there is no basement.
+```{r}
+# Changing the Na's in Bsmt features with "No Basement"
+homedf$BsmtExposure[is.na(homedf$BsmtExposure)]<- "No Basement"
+homedf$BsmtFinType2[is.na(homedf$BsmtFinType2)]<- "No Basement"
+homedf$BsmtQual[is.na(homedf$BsmtQual)]<- "No Basement"
+homedf$BsmtCond[is.na(homedf$BsmtCond)]<- "No Basement"
+homedf$BsmtFinType1[is.na(homedf$BsmtFinType1)]<- "No Basement"
+```
+Changing the missing values in MasVnrType And MasVnrArea wih 'None' and '0'.
+```{r}
+homedf$MasVnrType[is.na(homedf$MasVnrType)]<- "None"
+homedf$MasVnrArea[is.na(homedf$MasVnrArea)]<- "0"
+any(is.na(homedf$MasVnrType))
+any(is.na(homedf$MasVnrArea))
+```
+Fill in the electrical value with 'None'
+```{r}
+homedf$Electrical[is.na(homedf$Electrical)]<- "None"
+
+```
+Adding New variables
+
+#combine the basement and ground level area squarefeet "TotalLivingAreaSF"
+```{r}
+homedf %>% mutate( TotalLivingAreaSF = GrLivArea + BsmtFinSF1 + BsmtFinSF2)
+
+
+```
+
+```{r}
+#Create new column total number of bathrooms in ground level & basement 
+homedf %>% mutate(TotNoBath = FullBath + HalfBath ,TotNoBsmtBath = BsmtFullBath +
+BsmtHalfBath )
+
+```
+
+```{r}
+# New column Age of the House- "AgeOfHouse"
+homedf %>% mutate(AgeOfHouse = YrSold- YearBuilt)
+
+```
+
+SalePrice graph
+```{r}
+
+ggplot( homedf, aes(x = SalePrice)) +
+  geom_histogram(binwidth=10000, fill = "orange", color = "grey") +
+  labs(x = "Sale Price (in dollars)") +
+  ggtitle("Sales Prices of Homes in Ames, IA")
+
+```
+How expensive are houses?
+```{r}
+min(homedf$SalePrice, na.rm = T)
+max(homedf$SalePrice, na.rm = T)
+summary(homedf$SalePrice)
+```
+
+When were the houses built?
+```{r}
+ggplot(homedf, aes(x = YearBuilt)) +
+  geom_histogram( binwidth = 15,fill = "orange",color = "grey" ) +
+  labs(x = "Year Built") +
+   ggtitle(" When were the houses built ")
+
+```
+
+```{r}
+summary(homedf$YearBuilt)
+```
+
+
+```{r}
+homedf %>% count(YrSold)
+
+```
+
+
+Seasonal pattern of homesales
+
+
+```{r}
+ggplot(homedf, aes(x=MoSold,fill=YrSold))+
+  geom_histogram()
+
+```
+
+```{r}
+summary(homedf$MoSold)
+```
+
+```{r}
+#homedf.groupby(['YrSold','MoSold']).Id.count().plot(kind='bar', figsize=(14,4))
+#plt.title('When where houses sold?')
+#plt.show()
+#ggplot(homedf, aes(YrSold, MoSold))+ 
+ # geom_bar(stat = 'identity',fill = "orange" ,color = "grey",position = "dodge")+
+  #ggtitle("Seasonal pattern of Sales")
+
+  
+  
+```
+
+Which neighborhood are houses in?
+```{r}
+ggplot(homedf, aes(Neighborhood))+
+  geom_histogram( stat= 'count',binwidth=14, fill = "orange", color = "grey") +
+   theme(axis.text.x = element_text(angle = 90, size = 8), legend.position = "none")+
+    ggtitle("Which neighborhood are houses in?")
+
+```
+
+
+Boxplot of neighborhood and saleprice
+```{r}
+ggplot(homedf, aes(x = Neighborhood, y = SalePrice)) + 
+  geom_boxplot(fill = "orange") +
+  theme(axis.text.x = element_text(angle = 90, size = 8), legend.position = "none") + 
+  ggtitle("Neighborhood and Saleprice")
+```
+
+How big are houses 
+```{r}
+ggplot(homedf, aes(x = GrLivArea)) +
+  geom_histogram(binwidth = 100, fill = "orange",color = "grey" ) +
+  labs(x = "Ground Level  sqft") +
+  ggtitle(" House size ")
+
+```
+
+```{r}
+summary(homedf$GrLivArea)
+```
+How big are lots?
+
+```{r}
+summary(homedf$LotArea)
+```
+
+```{r}
+ggplot(homedf, aes(x = LotArea, y = SalePrice )) +
+  geom_line() +
+  labs(x = "Lot Area") +
+  ggtitle(" Lot Size & Price ")
+
+```
+
